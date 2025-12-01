@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore'; 
+import { auth, db } from '@/lib/firebase';       
 import { motion, Variants, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, MessageCircle, Zap, ArrowRight, CheckCircle, UserPlus, FileText, Lock, X, LogIn } from 'lucide-react';
 
@@ -14,18 +15,39 @@ export default function HomePage() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const router = useRouter();
 
-  // Cek status login
+  // --- LOGIC: Cek Status Login & Role ---
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser); // Simpan state user
+
+        // Cek Role di Database
+        try {
+            const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+            if (userDoc.exists()) {
+                const role = userDoc.data().role;
+                
+                // JIKA ADMIN/GURU -> REDIRECT KE DASHBOARD ADMIN
+                if (role === 'admin' || role === 'guru') {
+                    router.replace('/admin/dashboard');
+                }
+                // JIKA SISWA -> BIARIN DI BERANDA
+            }
+        } catch (error) {
+            console.error("Gagal cek role:", error);
+        }
+      } else {
+        setUser(null);
+      }
     });
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   // Handler saat tombol Lapor diklik
   const handleLaporClick = () => {
     if (user) {
-      // Jika sudah login, lanjut ke halaman lapor
+      // Jika sudah login (sebagai siswa), langsung ke halaman lapor
+      // (Karena Admin sudah dicegah di useEffect, jadi yg bisa klik ini pasti Siswa)
       router.push('/lapor');
     } else {
       // Jika belum, tampilkan modal
@@ -333,7 +355,7 @@ export default function HomePage() {
             </div>
         </section>
       </main>
-     {/* --- MODAL LOGIN (POP UP) --- */}
+      {/* --- MODAL LOGIN (POP UP) --- */}
       <AnimatePresence>
          {showLoginModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 px-6">
