@@ -1,21 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, writeBatch, where, Timestamp } from 'firebase/firestore'; 
 import { auth, db } from '@/lib/firebase';
 import Image from 'next/image';
 import { 
-  LogOut, AlertCircle, CheckCircle, Clock, MapPin, Calendar, 
-  Search, Filter, ChevronDown, User, Shield, 
-  LayoutDashboard, FileText, Image as ImageIcon, Loader2, PieChart,
-  Hand, MessageCircle, Globe, Users, HeartCrack, ShieldAlert, 
-  UsersRound, ShieldCheck
+  LogOut, Clock, Calendar, Search, Filter, ChevronDown, User, 
+  LayoutDashboard, FileText, Image as ImageIcon, Loader2, 
+  Hand, MessageCircle, Globe, Users, HeartCrack, 
+  ShieldAlert, MapPin, UsersRound, ShieldCheck, PieChart, CheckCircle, AlertCircle, Shield, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// --- Tipe Data ---
+// --- TIPE DATA ---
 type Laporan = {
   id: string;
   userId: string;
@@ -24,7 +23,7 @@ type Laporan = {
   lokasi: string;
   deskripsi: string;
   imageUrl: string;
-  status: string;
+  status: 'Menunggu' | 'Diproses' | 'Selesai' | 'Dibatalkan';
   catatanAdmin?: string; 
   createdAt: any;
 };
@@ -60,67 +59,77 @@ const getStatusBadge = (status: string) => {
     );
 };
 
+// --- Helper: Hitung Sisa Hari Auto Delete ---
+const getDaysRemaining = (createdAt: any) => {
+    if (!createdAt) return 0;
+    const createdDate = new Date(createdAt.seconds * 1000);
+    const expiryDate = new Date(createdDate);
+    expiryDate.setDate(createdDate.getDate() + 25); 
+    const today = new Date();
+    const diffTime = expiryDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 ? diffDays : 0;
+};
+
+// --- Komponen: StatCard ---
+const StatCard = ({ title, count, icon: Icon, colorClass }: any) => (
+  <motion.div 
+    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+    className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between group"
+  >
+    <div>
+      <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-slate-600 transition-colors">{title}</p>
+      <h3 className="text-3xl font-extrabold text-slate-800">{count}</h3>
+    </div>
+    <div className={`p-3.5 rounded-xl ${colorClass} group-hover:scale-110 transition-transform`}>
+      <Icon size={24} />
+    </div>
+  </motion.div>
+);
+
 // --- Komponen: StatsChart ---
 const StatsChart = ({ summary, totalSiswa, totalAdmin }: { summary: any, totalSiswa: number, totalAdmin: number }) => {
-    // Pastikan semua nilai ada (fallback ke 0 jika undefined)
     const m = summary.menunggu || 0;
     const p = summary.diproses || 0;
     const s = summary.selesai || 0;
     const b = summary.dibatalkan || 0;
     const totalLaporan = m + p + s + b;
     
-    // Helper Gradient untuk Individual Chart
     const createChartData = (count: number, color: string) => {
         const percentage = totalLaporan === 0 ? 0 : (count / totalLaporan) * 100;
         return `conic-gradient(${color} 0% ${percentage}%, #F3F4F6 ${percentage}% 100%)`;
     };
 
-    const stats = [
-        { 
-            label: "Menunggu", count: m, color: "#6B7280", 
-            gradient: createChartData(m, "#EF4444"), textColor: "text-red-600", bgColor: "bg-white"
-        },
-        { 
-            label: "Diproses", count: p, color: "#F97316", 
-            gradient: createChartData(p, "#F59E0B"), textColor: "text-yellow-600", bgColor: "bg-white"
-        },
-        { 
-            label: "Selesai", count: s, color: "#22C55E", 
-            gradient: createChartData(s, "#22C55E"), textColor: "text-green-600", bgColor: "bg-white"
-        },
-    
-        { 
-            label: "Dibatalkan", count: b, color: "#EF4444", 
-            gradient: createChartData(b, "#EF4444"), textColor: "text-red-600", bgColor: "bg-white"
-        }
+    const chartData = [
+        { label: "Menunggu", count: m, color: "#6B7280", gradient: createChartData(m, "#EF4444"), textColor: "text-red-600", bgColor: "bg-white" },
+        { label: "Diproses", count: p, color: "#F97316", gradient: createChartData(p, "#F59E0B"), textColor: "text-yellow-600", bgColor: "bg-white" },
+        { label: "Selesai", count: s, color: "#22C55E", gradient: createChartData(s, "#22C55E"), textColor: "text-green-600", bgColor: "bg-white" },
+        { label: "Dibatalkan", count: b, color: "#EF4444", gradient: createChartData(b, "#EF4444"), textColor: "text-red-600", bgColor: "bg-white" }
     ];
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-8 relative z-10">
-            
-            {/* 1. Statistik Pengguna */}
-            <div className="xl:col-span-1 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">
-                 <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:shadow-md transition-shadow">
+            <div className="xl:col-span-1 grid grid-cols-2 md:grid-cols-2 xl:grid-cols-1 gap-4">
+                 <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:justify-between justify-center text-center sm:text-left hover:shadow-md transition-shadow">
                     <div>
-                        <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">Total Siswa</p>
-                        <h3 className="text-3xl font-extrabold text-slate-600 mt-1">{totalSiswa}</h3>
+                        <p className="text-[10px] sm:text-xs font-bold text-slate-800 uppercase tracking-wider">Siswa</p>
+                        <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-600 mt-1">{totalSiswa}</h3>
                     </div>
-                    <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                        <UsersRound size={28} />
+                    <div className="p-2 sm:p-3 bg-blue-50 text-blue-600 rounded-xl mt-2 sm:mt-0">
+                        <UsersRound size={24} className="sm:w-7 sm:h-7" />
                     </div>
                 </div>
-                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center justify-between hover:shadow-md transition-shadow">
+                <div className="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col sm:flex-row items-center sm:justify-between justify-center text-center sm:text-left hover:shadow-md transition-shadow">
                     <div>
-                        <p className="text-xs font-bold text-slate-800 uppercase tracking-wider">Total Admin</p>
-                        <h3 className="text-3xl font-extrabold text-slate-600 mt-1">{totalAdmin}</h3>
+                        <p className="text-[10px] sm:text-xs font-bold text-slate-800 uppercase tracking-wider">Admin</p>
+                        <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-600 mt-1">{totalAdmin}</h3>
                     </div>
-                    <div className="p-3 bg-slate-100 text-slate-600 rounded-xl">
-                        <ShieldCheck size={28} />
+                    <div className="p-2 sm:p-3 bg-slate-100 text-slate-600 rounded-xl mt-2 sm:mt-0">
+                        <ShieldCheck size={24} className="sm:w-7 sm:h-7" />
                     </div>
                 </div>
             </div>
 
-            {/* 2. Statistik Laporan */}
             <div className="xl:col-span-3 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
                 <div className="flex items-center justify-between mb-6">
                     <h3 className="text-lg font-extrabold text-slate-800 flex items-center gap-2">
@@ -129,16 +138,16 @@ const StatsChart = ({ summary, totalSiswa, totalAdmin }: { summary: any, totalSi
                     <span className="text-xs font-medium bg-slate-100 px-2 py-1 rounded-lg text-slate-500">Total: {totalLaporan}</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {stats.map((stat, idx) => (
-                        <div key={idx} className={`flex flex-col items-center justify-center p-5 rounded-2xl border border-slate-200 ${stat.bgColor} hover:shadow-md transition-shadow`}>
-                            <div className="relative w-20 h-20 mb-3 transition-transform hover:scale-105">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {chartData.map((stat, idx) => (
+                        <div key={idx} className={`flex flex-col items-center justify-center p-4 sm:p-5 rounded-2xl border border-slate-200 ${stat.bgColor} hover:shadow-md transition-shadow`}>
+                            <div className="relative w-16 h-16 sm:w-20 sm:h-20 mb-3 transition-transform hover:scale-105">
                                 <div className="w-full h-full rounded-full shadow-inner" style={{ background: stat.gradient }}></div>
-                                <div className="absolute inset-0 m-auto w-14 h-14 bg-white rounded-full flex items-center justify-center shadow-sm">
-                                    <span className={`text-lg font-extrabold ${stat.textColor}`}>{stat.count}</span>
+                                <div className="absolute inset-0 m-auto w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-full flex items-center justify-center shadow-sm">
+                                    <span className={`text-sm sm:text-lg font-extrabold ${stat.textColor}`}>{stat.count}</span>
                                 </div>
                             </div>
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{stat.label}</span>
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wide text-center">{stat.label}</span>
                         </div>
                     ))}
                 </div>
@@ -150,16 +159,15 @@ const StatsChart = ({ summary, totalSiswa, totalAdmin }: { summary: any, totalSi
 // --- PAGE UTAMA ---
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
+  const [adminName, setAdminName] = useState(''); 
   const [laporanList, setLaporanList] = useState<Laporan[]>([]);
   const [filteredList, setFilteredList] = useState<Laporan[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Stats User
   const [totalSiswa, setTotalSiswa] = useState(0);
   const [totalAdmin, setTotalAdmin] = useState(0);
   const [totalDibatalkan, setTotalDibatalkan] = useState(0);
 
-  // Filter States
   const [filterStatus, setFilterStatus] = useState('Semua');
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -168,33 +176,71 @@ export default function AdminDashboard() {
 
   const router = useRouter();
 
-  // 1. Auth & Data Fetching (UPDATED WITH SECURITY CHECK)
+  // --- LOGIC: PEMBERSIHAN OTOMATIS (AUTO DELETE) ---
+  const autoDeleteOldReports = async () => {
+    try {
+      const daysAgo = 25; 
+      const dateThreshold = new Date();
+      dateThreshold.setDate(dateThreshold.getDate() - daysAgo);
+      
+      const q = query(
+        collection(db, "laporan_perundungan"),
+        where("status", "==", "Selesai"),
+        where("createdAt", "<=", Timestamp.fromDate(dateThreshold))
+      );
+
+      const { getDocs } = await import('firebase/firestore'); 
+      const oldReportsSnap = await getDocs(q);
+
+      if (oldReportsSnap.empty) return; 
+
+      const batch = writeBatch(db);
+      let count = 0;
+
+      oldReportsSnap.forEach((doc) => {
+        batch.delete(doc.ref);
+        count++;
+      });
+
+      await batch.commit();
+      console.log(`[Auto-Clean] Berhasil membersihkan ${count} laporan lama.`);
+    } catch (error) {
+      console.error("Gagal auto-delete:", error);
+    }
+  };
+
+  // --- LOGIC: DATA FETCHING & PROTECTION ---
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/admin/login'); 
       } else {
         
-        // --- LOGIKA PROTEKSI RUANGAN (BARU) ---
-        // Cek apakah user yang login benar-benar Admin
+        // --- PROTEKSI RUANGAN & AMBIL NAMA ---
         try {
             const userRef = doc(db, 'users', currentUser.uid);
             const userSnap = await getDoc(userRef);
             
             if (userSnap.exists()) {
                 const userData = userSnap.data();
+                
+                // Cek Role
                 if (userData.role !== 'admin' && userData.role !== 'guru') {
-                    // Jika Siswa, tendang ke dashboard siswa
                     router.replace('/siswa/dashboard');
-                    return; // Stop loading data admin
+                    return; 
                 }
+
+                // Ambil Nama Admin
+                const realName = userData.nama || currentUser.email?.split('@')[0] || 'Administrator';
+                setAdminName(realName);
             }
         } catch (error) {
             console.error("Gagal verifikasi admin:", error);
+            setAdminName(currentUser.email?.split('@')[0] || 'Administrator');
         }
-        // --------------------------------------
 
         setUser(currentUser);
+        autoDeleteOldReports(); 
         
         // A. Listener Laporan
         const qLaporan = query(collection(db, "laporan_perundungan"), orderBy("createdAt", "desc"));
@@ -208,31 +254,24 @@ export default function AdminDashboard() {
           setLoading(false);
         });
 
-        // B. Listener Users (Hitung Siswa & Admin)
+        // B. Listener Users
         const qUsers = query(collection(db, "users"));
         const unsubUsers = onSnapshot(qUsers, (snapshot) => {
-             let siswaCount = 0;
-             let adminCount = 0;
-             let dibatalkanCount = 0;
+             let s = 0, a = 0, d = 0;
              snapshot.docs.forEach(doc => {
                  const data = doc.data();
-                 if (data.role === 'siswa') siswaCount++;
-                 if (data.role === 'admin' || data.role === 'guru') adminCount++;
-                 // Hitung akumulasi laporan yang dibatalkan dari setiap siswa
-                 // (Karena data laporannya sudah dihapus, kita ambil dari counter di profil user)
+                 if (data.role === 'siswa') s++;
+                 if (data.role === 'admin' || data.role === 'guru') a++;
                  if (data.stats_dibatalkan) {
-                    dibatalkanCount += (typeof data.stats_dibatalkan === 'number' ? data.stats_dibatalkan : 0);
+                    d += (typeof data.stats_dibatalkan === 'number' ? data.stats_dibatalkan : 0);
                  }
              });
-             setTotalSiswa(siswaCount);
-             setTotalAdmin(adminCount);
-             setTotalDibatalkan(dibatalkanCount); 
+             setTotalSiswa(s);
+             setTotalAdmin(a);
+             setTotalDibatalkan(d); 
         });
 
-        return () => {
-            unsubLaporan();
-            unsubUsers();
-        };
+        return () => { unsubLaporan(); unsubUsers(); };
       }
     });
     return () => unsubscribeAuth();
@@ -256,7 +295,7 @@ export default function AdminDashboard() {
     setFilteredList(result);
   }, [filterStatus, searchTerm, laporanList]);
 
-  // 3. Actions (Logout, Update)
+  // 3. Actions
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/admin/login');
@@ -293,7 +332,6 @@ export default function AdminDashboard() {
           });
       }
     } catch (error) {
-      console.error("Error update:", error);
       alert("Gagal mengubah status.");
     } finally {
         setIsUpdating(null);
@@ -311,7 +349,6 @@ export default function AdminDashboard() {
     });
   };
 
-  // Hitung summary laporan untuk Chart
   const summaryStats = {
     menunggu: laporanList.filter(i => i.status === 'Menunggu').length,
     diproses: laporanList.filter(i => i.status === 'Diproses').length,
@@ -329,7 +366,7 @@ export default function AdminDashboard() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-24 relative">
       
-      {/* --- DECORATION BACKGROUND --- */}
+      {/* DECORATION BACKGROUND */}
       <div className="absolute top-0 inset-x-0 h-[25rem] bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300 rounded-b-[3rem] shadow-lg z-0">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       </div>
@@ -353,7 +390,8 @@ export default function AdminDashboard() {
                     <User size={16} />
                 </div>
                 <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-slate-700 truncate">{user?.email?.split('@')[0]}</span>
+                    {/* UPDATE: Menampilkan Nama Admin */}
+                    <span className="text-xs font-bold text-slate-700 truncate">{adminName || 'Memuat...'}</span>
                     <span className="text-[10px] text-slate-400">Administrator</span>
                 </div>
             </div>
@@ -366,7 +404,7 @@ export default function AdminDashboard() {
 
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
         
-        {/* Header Page */}
+        {/* HEADER PAGE */}
         <div className="mb-8 pt-4">
             <h2 className="text-2xl md:text-4xl font-extrabold text-slate-800 flex items-center gap-2">
                 <LayoutDashboard className="text-slate-800"/>Dashboard <span className="text-orange-500"> Overview</span>
@@ -374,19 +412,19 @@ export default function AdminDashboard() {
             <p className="text-slate-600 mt-1 ml-1 font-medium">Pantau aktivitas laporan siswa secara realtime.</p>
         </div>
 
-        {/* STATISTIK */}
+        {/* STATISTIK CHART */}
         <StatsChart summary={summaryStats} totalSiswa={totalSiswa} totalAdmin={totalAdmin} />
 
         {/* TOOLBAR */}
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row gap-3 sticky top-20 z-30">
             <div className="relative flex-grow">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder="Cari laporan (nama, deskripsi, lokasi)..." className="w-full pl-11 pr-4 py-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500/50 text-slate-700 text-sm font-medium transition-all"
+                <input type="text" placeholder="Cari laporan (nama, deskripsi, lokasi)..." className="w-full pl-11 pr-4 py-3 bg-slate-100 border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm text-sm font-medium text-slate-700 placeholder:text-slate-400"
                     value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="relative min-w-[180px]">
                 <Filter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-                <select className="w-full pl-11 pr-8 py-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500/50 text-slate-500 text-sm font-bold cursor-pointer appearance-none transition-all"
+                <select className="w-full pl-11 pr-8 py-3 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-blue-500/20 text-slate-500 text-sm font-bold cursor-pointer appearance-none transition-all"
                     value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                     <option value="Semua">Semua Status</option>
                     <option value="Menunggu">Menunggu</option>
@@ -399,39 +437,65 @@ export default function AdminDashboard() {
 
         {/* REPORT LIST */}
         <div className="space-y-4">
-            <AnimatePresence>
+            <AnimatePresence mode='popLayout'>
                 {filteredList.length === 0 ? (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4"><FileText size={40} className="text-slate-300" /></div>
-                        <h3 className="text-lg font-bold text-slate-800">Data tidak ditemukan</h3>
-                        <p className="text-sm text-slate-600">Silahkan Ganti Kata Kunci Anda</p>
-                        <button onClick={() => {setSearchTerm(''); setFilterStatus('Semua')}} className="mt-4 text-orange-500 font-bold text-sm hover:underline">Reset Filter</button>
+                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Search size={32} className="text-slate-300" />
+                        </div>
+                        <h3 className="text-slate-600 font-bold text-lg">Tidak ada laporan ditemukan</h3>
+                        <p className="text-slate-400 text-sm">Coba ubah filter atau kata kunci pencarian</p>
+                        <button onClick={() => {setSearchTerm(''); setFilterStatus('Semua')}} className="mt-4 text-blue-600 font-bold text-sm hover:underline">
+                            Reset Filter
+                        </button>
                     </motion.div>
                 ) : (
-                    filteredList.map((item) => (
-                        <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }} key={item.id} 
-                            className={`bg-white rounded-2xl shadow-sm border overflow-hidden transition-all duration-300 hover:shadow-md ${
-                                item.status === 'Menunggu' ? 'border-l-4 border-l-red-500 border-slate-200' : 
-                                item.status === 'Diproses' ? 'border-l-4 border-l-yellow-500 border-slate-200' :
-                                item.status === 'Selesai' ? 'border-l-4 border-l-green-500 border-slate-200' :
-                                'border-slate-200'
-                            }`}>
-                            <div className="p-5 cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}>
-                                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                                    <div className="flex gap-4 items-start flex-1 min-w-0">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 border shadow-sm ${getCaseConfig(item.jenisKasus).color}`}>
-                                            {getCaseConfig(item.jenisKasus).icon}
+                    filteredList.map((item) => {
+                        // Menggunakan Fungsi
+                        const config = getCaseConfig(item.jenisKasus);
+                        const CaseIcon = config.icon;
+                        const isExpanded = expandedId === item.id;
+
+                        return (
+                            <motion.div 
+                                layout 
+                                initial={{ opacity: 0, y: 10 }} 
+                                animate={{ opacity: 1, y: 0 }} 
+                                exit={{ opacity: 0, scale: 0.95 }} 
+                                key={item.id} 
+                                className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden group
+                                    ${isExpanded ? 'ring-2 ring-blue-500/20 shadow-lg border-blue-200' : 'border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md'}
+                                `}
+                            >
+                                {/* CARD HEADER */}
+                                <div 
+                                    onClick={() => setExpandedId(isExpanded ? null : item.id)}
+                                    className="p-5 cursor-pointer flex flex-col sm:flex-row gap-4 sm:items-center justify-between relative"
+                                >
+                                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${item.status === 'Menunggu' ? 'bg-red-500' : item.status === 'Diproses' ? 'bg-amber-500' : item.status === 'Selesai' ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+
+                                    <div className="flex items-start gap-4 pl-3">
+                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0 border ${config.color} shadow-sm`}>
+                                            {config.icon}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex flex-wrap items-center gap-2 mb-1">
-                                                <span className="font-bold text-slate-800 text-lg truncate max-w-[350px]">{item.jenisKasus}</span>
+                                            <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                                <h3 className="font-bold text-slate-800 text-base">{item.jenisKasus}</h3>
                                                 {getStatusBadge(item.status)}
                                             </div>
                                             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 font-medium">
-                                                <span className="flex items-center gap-1"><Calendar size={12}/> {formatDate(item.createdAt)}</span>
+                                                <span className="flex items-center gap-1.5"><Calendar size={14} className="text-slate-400"/> {formatDate(item.createdAt)}</span>
                                                 {item.lokasi && <span className="flex items-center gap-1 truncate max-w-[350px]"><MapPin size={12}/> {item.lokasi}</span>}
                                                 <span className="flex items-center gap-1 truncate max-w-[350px]"><User size={12}/> {item.userEmail || "Anonim"}</span>
                                             </div>
+                                            
+                                            {/* INFO AUTO DELETE */}
+                                            {item.status === 'Selesai' && (
+                                                <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-red-100 animate-pulse">
+                                                    <Trash2 size={10} />
+                                                    <span>Hapus otomatis dalam: {getDaysRemaining(item.createdAt)} hari</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <div className="flex items-center pl-2 border-l border-slate-100 ml-2 md:ml-0 md:pl-0 md:border-none">
@@ -440,66 +504,67 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <AnimatePresence>
-                                {expandedId === item.id && (
-                                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-200 bg-slate-100">
-                                        <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                            <div className="lg:col-span-2 space-y-6">
-                                                <div>
-                                                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={14}/> Deskripsi Laporan</h4>
-                                                    <div className="bg-white p-5 rounded-2xl border border-slate-200 text-slate-700 text-sm leading-relaxed shadow-sm">"{item.deskripsi}"</div>
-                                                </div>
-                                            
-                                                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
-                                                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2"><Shield size={14}/> Tindak Lanjut & Respon</h4>
-                                                    <div className="mb-4">
-                                                        <label className="block text-xs font-medium text-slate-500 mb-1">Pesan untuk Siswa (Dikirim via email)</label>
-                                                        <textarea className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none transition-all bg-slate-50 text-slate-700"
-                                                            placeholder="Tulis pesan tindak lanjut..." rows={3}
-                                                            value={catatanInput[item.id] !== undefined ? catatanInput[item.id] : (item.catatanAdmin || "")}
-                                                            onChange={(e) => handleCatatanChange(item.id, e.target.value)}
-                                                        />
+                                {/* CARD DETAILS */}
+                                <AnimatePresence>
+                                    {isExpanded && (
+                                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-200 bg-slate-100">
+                                            <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                                <div className="lg:col-span-2 space-y-6">
+                                                    <div>
+                                                        <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2"><FileText size={14}/> Deskripsi Laporan</h4>
+                                                        <div className="bg-white p-5 rounded-2xl border border-slate-200 text-slate-700 text-sm leading-relaxed shadow-sm">"{item.deskripsi}"</div>
                                                     </div>
-                                                    <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-200 pt-4">
-                                                        <span className="text-xs text-slate-500 font-medium">{isUpdating === item.id ? "Mengirim..." : "Simpan & Kirim Email:"}</span>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto">
-                                                            {['Menunggu', 'Diproses', 'Selesai'].map((statusOption) => (
-                                                                <button key={statusOption} disabled={!!isUpdating} onClick={() => updateStatus(item, statusOption)}
-                                                                    className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 w-full ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''} ${item.status === statusOption ? (statusOption === 'Menunggu' ? 'bg-red-50 text-red-600 border-red-200' : statusOption === 'Diproses' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-green-50 text-green-600 border-green-200') + ' border ring-1' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200'}`}>
-                                                                    {isUpdating === item.id && item.status !== statusOption ? <Loader2 className="animate-spin" size={12}/> : <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusOption === 'Menunggu' ? 'bg-red-500' : statusOption === 'Diproses' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>}
-                                                                    {statusOption}
-                                                                </button>
-                                                            ))}
+                                                
+                                                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                                                        <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2"><Shield size={14}/> Tindak Lanjut & Respon</h4>
+                                                        <div className="mb-4">
+                                                            <label className="block text-xs font-medium text-slate-500 mb-1">Pesan untuk Siswa (Dikirim via email)</label>
+                                                            <textarea className="w-full p-3 text-sm border border-slate-200 rounded-xl focus:ring-1 focus:ring-blue-500 outline-none transition-all bg-slate-50 text-slate-700"
+                                                                placeholder="Tulis pesan tindak lanjut..." rows={3}
+                                                                value={catatanInput[item.id] !== undefined ? catatanInput[item.id] : (item.catatanAdmin || "")}
+                                                                onChange={(e) => handleCatatanChange(item.id, e.target.value)}
+                                                            />
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2"><ImageIcon size={14} /> Bukti Lampiran</h4>
-                                                <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-                                                    {item.imageUrl ? (
-                                                        <div className="relative h-48 w-full rounded-xl overflow-hidden bg-slate-100 group">
-                                                            <Image src={item.imageUrl} alt="Bukti" fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
-                                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                                                <a href={item.imageUrl} target="_blank" rel="noreferrer" className="bg-white text-slate-900 px-4 py-2 rounded-full text-xs font-bold hover:bg-slate-100 transition">Lihat Penuh</a>
+                                                        <div className="flex flex-col sm:flex-row gap-3 items-center justify-between border-t border-slate-200 pt-4">
+                                                            <span className="text-xs text-slate-500 font-medium">{isUpdating === item.id ? "Mengirim..." : "Simpan & Kirim Email:"}</span>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full sm:w-auto">
+                                                                {['Menunggu', 'Diproses', 'Selesai'].map((statusOption) => (
+                                                                    <button key={statusOption} disabled={!!isUpdating} onClick={() => updateStatus(item, statusOption)}
+                                                                        className={`px-3 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 w-full ${isUpdating ? 'opacity-50 cursor-not-allowed' : ''} ${item.status === statusOption ? (statusOption === 'Menunggu' ? 'bg-red-50 text-red-600 border-red-200' : statusOption === 'Diproses' ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-green-50 text-green-600 border-green-200') + ' border ring-1' : 'text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-200'}`}>
+                                                                        {isUpdating === item.id && item.status !== statusOption ? <Loader2 className="animate-spin" size={12}/> : <div className={`w-2 h-2 rounded-full flex-shrink-0 ${statusOption === 'Menunggu' ? 'bg-red-500' : statusOption === 'Diproses' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>}
+                                                                        {statusOption}
+                                                                    </button>
+                                                                ))}
                                                             </div>
                                                         </div>
-                                                    ) : (
-                                                        <div className="h-48 w-full bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200">
-                                                            <ImageIcon size={32} className="opacity-20 mb-2" />
-                                                            <span className="text-xs font-medium">Tidak ada foto</span>
-                                                        </div>
-                                                    )}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2 flex items-center gap-2"><ImageIcon size={14} /> Bukti Lampiran</h4>
+                                                    <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+                                                        {item.imageUrl ? (
+                                                            <div className="relative h-48 w-full rounded-xl overflow-hidden bg-slate-100 group">
+                                                                <Image src={item.imageUrl} alt="Bukti" fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <a href={item.imageUrl} target="_blank" rel="noreferrer" className="bg-white text-slate-900 px-4 py-2 rounded-full text-xs font-bold hover:bg-slate-100 transition">Lihat Penuh</a>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="h-48 w-full bg-slate-50 rounded-xl flex flex-col items-center justify-center text-slate-400 border-2 border-dashed border-slate-200">
+                                                                <ImageIcon size={32} className="opacity-20 mb-2" />
+                                                                <span className="text-xs font-medium">Tidak ada foto</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-                        </motion.div>
-                    ))
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </motion.div>
+                        )
+                    })
                 )}
             </AnimatePresence>
         </div>
