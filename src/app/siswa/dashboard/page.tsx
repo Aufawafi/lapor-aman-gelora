@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, JSX } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { User as FirebaseUser, onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
@@ -18,12 +18,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// --- Tipe Data ---
+// Tipe Data 
 type LaporanSaya = {
   id: string;
   jenisKasus: string;
   status: 'Menunggu' | 'Diproses' | 'Selesai' | 'Dibatalkan';
-  createdAt: Timestamp;
+  createdAt: any;
   deskripsi: string;
   lokasi?: string;
   imageUrl?: string;
@@ -45,19 +45,20 @@ type SummaryStats = {
     dibatalkan: number;
 }
 
-// --- Helper Functions ---
-const formatDate = (timestamp: Timestamp | null) => {
+// Helper Functions
+const formatDate = (timestamp: any) => {
   if (!timestamp) return "-";
   return new Date(timestamp.seconds * 1000).toLocaleDateString("id-ID", {
     day: 'numeric', month: 'short', year: 'numeric'
   });
 };
 
-const getDaysRemaining = (createdAt: Timestamp | null) => {
+// Helper: Hitung Sisa Hari Auto Delete
+const getDaysRemaining = (createdAt: any) => {
     if (!createdAt) return 0;
     const createdDate = new Date(createdAt.seconds * 1000);
     const expiryDate = new Date(createdDate);
-    expiryDate.setDate(createdDate.getDate() + 25);
+    expiryDate.setDate(createdDate.getDate() + 25); // Batas 25 Hari
     const today = new Date();
     const diffTime = expiryDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -75,13 +76,14 @@ const getCaseConfig = (jenis: string) => {
     }
 };
 
-const getStatusBadge = (status: LaporanSaya['status']) => {
-    const configs: Record<LaporanSaya['status'], { style: string, icon: JSX.Element }> = {
+const getStatusBadge = (status: string) => {
+    const configs: any = {
         Diproses: { style: "bg-orange-50 text-orange-600 ring-orange-500/30", icon: <Clock size={12} /> },
         Selesai: { style: "bg-green-50 text-green-600 ring-green-500/30", icon: <CheckCircle size={12} /> },
         Dibatalkan: { style: "bg-red-50 text-red-600 ring-red-500/30", icon: <XCircle size={12} /> },
         Menunggu: { style: "bg-gray-50 text-gray-600 ring-gray-500/30", icon: <AlertCircle size={12} /> }
     };
+    // @ts-ignore
     const { style, icon } = configs[status] || configs.Menunggu;
     return (
       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ring-1 ring-inset ${style}`}>
@@ -90,7 +92,7 @@ const getStatusBadge = (status: LaporanSaya['status']) => {
     );
 };
 
-// --- Komponen ---
+// Komponen: QuotaCard 
 const QuotaCard = ({ count }: { count: number }) => {
     const limit = 2;
     const sisa = limit - count;
@@ -143,6 +145,7 @@ const QuotaCard = ({ count }: { count: number }) => {
     );
 };
 
+// Komponen Lainnya
 const ProfileCard = ({ user, userData, onLogout }: { user: FirebaseUser | null, userData: ProfilSiswa | null, onLogout: () => void }) => {
     const displayName = userData?.nama || user?.displayName || "Siswa";
     const initial = displayName.charAt(0).toUpperCase();
@@ -219,6 +222,20 @@ const StatsGrid = ({ summary }: { summary: SummaryStats }) => {
     );
 };
 
+const ReportList = ({ reports, onCancel }: { reports: LaporanSaya[], onCancel: (id: string) => void }) => {
+    if (reports.length === 0) return <EmptyState />;
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <AnimatePresence mode='popLayout'>
+                {reports.map((item) => (
+                    <ReportCard key={item.id} item={item} onCancel={onCancel} />
+                ))}
+            </AnimatePresence>
+        </div>
+    );
+};
+
 const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: string) => void }) => {
     const { icon, color } = getCaseConfig(item.jenisKasus);
 
@@ -275,7 +292,8 @@ const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: stri
                     </div>
                 )}
             </div>
-
+            
+            {/* --- INFO AUTO DELETE --- */}
             {item.status === 'Selesai' && (
                 <div className="px-5 pb-4 mt-1">
                     <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-medium border border-red-100 animate-pulse w-full justify-center">
@@ -346,7 +364,7 @@ const CancelModal = ({ isOpen, onClose, onConfirm, isCancelling }: { isOpen: boo
     </AnimatePresence>
 );
 
-// --- Komponen Utama ---
+// Komponen Utama
 export default function SiswaDashboard() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userData, setUserData] = useState<ProfilSiswa | null>(null);
@@ -358,6 +376,7 @@ export default function SiswaDashboard() {
   const [isCancelling, setIsCancelling] = useState(false);
   const router = useRouter();
 
+  // --- PEMBERSIHAN OTOMATIS (KHUSUS USER INI)
   const autoDeleteOldReports = async (uid: string) => {
     try {
       const daysAgo = 25; 
@@ -366,7 +385,7 @@ export default function SiswaDashboard() {
       
       const q = query(
         collection(db, "laporan_perundungan"),
-        where("userId", "==", uid),
+        where("userId", "==", uid), 
         where("status", "==", "Selesai"),
         where("createdAt", "<=", Timestamp.fromDate(dateThreshold))
       );
@@ -377,19 +396,46 @@ export default function SiswaDashboard() {
       if (oldReportsSnap.empty) return; 
 
       const batch = writeBatch(db);
-      oldReportsSnap.forEach((doc) => batch.delete(doc.ref));
+      let count = 0;
+
+      // Delete Image from Cloudinary
+      const deleteImagePromises = oldReportsSnap.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+          
+          batch.delete(docSnap.ref);
+          count++;
+
+          // Jika ada gambar, hapus dari Cloudinary
+          if (data.imageUrl) {
+              try {
+                  await fetch('/api/delete-image', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ imageUrl: data.imageUrl })
+                  });
+              } catch (err) {
+                  console.error("Gagal hapus gambar auto:", err);
+              }
+          }
+      });
+
+      await Promise.all(deleteImagePromises);
       await batch.commit();
+      console.log(`[Auto-Clean Siswa] Berhasil membersihkan ${count} laporan lama milik user ini.`);
 
     } catch (error) {
       console.error("Gagal auto-delete siswa:", error);
     }
   };
 
+  // AUTH & DATA FETCHING 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/siswa/login');
       } else {
+        
+        // PROTEKSI HALAMAN
         try {
             const userRef = doc(db, 'users', currentUser.uid);
             const userSnap = await getDoc(userRef);
@@ -406,13 +452,19 @@ export default function SiswaDashboard() {
         }
 
         setUser(currentUser);
+
+        // Eksekusi Auto Delete
         autoDeleteOldReports(currentUser.uid);
         
-        const userDocRef = doc(db, "users", currentUser.uid);
-        const unsubProfile = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) setUserData(docSnap.data() as ProfilSiswa);
-        });
+        // Ambil Profil
+        try {
+            const userDocRef = doc(db, "users", currentUser.uid);
+            onSnapshot(userDocRef, (docSnap) => {
+                if (docSnap.exists()) setUserData(docSnap.data() as ProfilSiswa);
+            });
+        } catch (err) { console.error("Gagal profil:", err); }
 
+        // Ambil List Laporan
         const qList = query(collection(db, "laporan_perundungan"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
         const unsubList = onSnapshot(qList, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LaporanSaya[];
@@ -420,6 +472,7 @@ export default function SiswaDashboard() {
           setLoading(false);
         });
 
+        // Ambil Kuota Harian
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
         const qQuota = query(
@@ -427,10 +480,11 @@ export default function SiswaDashboard() {
             where("userId", "==", currentUser.uid),
             where("createdAt", ">=", today)
         );
-        const unsubQuota = onSnapshot(qQuota, (snapshot) => setDailyCount(snapshot.size));
+        const unsubQuota = onSnapshot(qQuota, (snapshot) => {
+            setDailyCount(snapshot.size);
+        });
 
         return () => {
-            unsubProfile();
             unsubList();
             unsubQuota();
         };
@@ -448,6 +502,24 @@ export default function SiswaDashboard() {
     setIsCancelling(true);
     try {
         const reportRef = doc(db, "laporan_perundungan", selectedReportId);
+        const reportSnap = await getDoc(reportRef);
+
+        if (reportSnap.exists()) {
+            const data = reportSnap.data();
+            // Hapus gambar dari Cloudinary saat user membatalkan
+            if (data.imageUrl) {
+                try {
+                    await fetch('/api/delete-image', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ imageUrl: data.imageUrl })
+                    });
+                } catch (imgErr) {
+                    console.error("Gagal hapus gambar, lanjut hapus data...", imgErr);
+                }
+            }
+        }
+
         await deleteDoc(reportRef);
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, { stats_dibatalkan: increment(1) });
@@ -476,12 +548,15 @@ export default function SiswaDashboard() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] font-sans pb-24 relative">
+      
+      {/* Decoration Background */}
       <div className="absolute top-0 inset-x-0 h-[22rem] bg-gradient-to-br from-blue-100 via-blue-200 to-blue-300 rounded-b-[3rem] shadow-lg z-0">
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       </div>
       
       <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 pt-4 gap-4">
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 pt-4 gap-4 text-white">
             <div>
                 <div className="flex items-center gap-2 mb-1 text-gray-600/80">
                     <LayoutDashboard size={18} />
@@ -501,12 +576,14 @@ export default function SiswaDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Sidebar */}
             <div className="lg:col-span-4 space-y-0">
                 <ProfileCard user={user} userData={userData} onLogout={handleLogout} />
                 <QuotaCard count={dailyCount} />
                 <StatsGrid summary={summary} />
             </div>
 
+            {/* Main Content */}
             <div className="lg:col-span-8">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 gap-4">
                     <div>
@@ -515,6 +592,8 @@ export default function SiswaDashboard() {
                         </h2>
                         <p className="text-sm text-gray-600/80 mt-1">Pantau status laporan yang telah Anda kirim.</p>
                     </div>
+                    
+                    {/* TOMBOL + HANYA MUNCUL JIKA KUOTA BELUM HABIS */}
                     {dailyCount < 2 &&
                         <Link href="/lapor" className="hidden sm:inline-flex items-center gap-2 bg-white text-gray-600 px-6 py-3 rounded-2xl text-sm font-bold shadow-lg shadow-gray-900/20 hover:bg-gray-50 hover:scale-105 transition-all">
                             <Plus size={18} strokeWidth={3} /> Buat Laporan Baru
@@ -522,18 +601,11 @@ export default function SiswaDashboard() {
                     }
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <AnimatePresence>
-                        {laporanList.length > 0 ? (
-                            laporanList.map((item) => <ReportCard key={item.id} item={item} onCancel={openCancelModal} />)
-                        ) : (
-                            <EmptyState />
-                        )}
-                    </AnimatePresence>
-                </div>
+                <ReportList reports={laporanList} onCancel={openCancelModal} />
             </div>
         </div>
 
+        {/* FAB Mobile */}
         {dailyCount < 2 &&
             <div className="fixed bottom-6 right-6 sm:hidden z-30">
                 <Link href="/lapor" className="flex items-center justify-center w-14 h-14 bg-blue-300 text-white rounded-full shadow-xl shadow-blue-500/40 hover:scale-110 transition-transform">

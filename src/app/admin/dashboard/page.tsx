@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, writeBatch, where, Timestamp } from 'firebase/firestore'; 
@@ -10,7 +10,7 @@ import {
   LogOut, Clock, Calendar, Search, Filter, ChevronDown, User, 
   LayoutDashboard, FileText, Image as ImageIcon, Loader2, 
   Hand, MessageCircle, Globe, Users, HeartCrack, 
-  ShieldAlert, MapPin, UsersRound, ShieldCheck, PieChart, CheckCircle, AlertCircle, Shield, Trash2
+  ShieldAlert, CheckCircle2, AlertTriangle, MapPin, UsersRound, ShieldCheck, PieChart, CheckCircle, AlertCircle, Shield, Trash2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
 
   const router = useRouter();
 
-  // --- LOGIC: PEMBERSIHAN OTOMATIS (AUTO DELETE) ---
+  // --- PEMBERSIHAN OTOMATIS (AUTO DELETE + IMAGE) ---
   const autoDeleteOldReports = async () => {
     try {
       const daysAgo = 25; 
@@ -197,13 +197,30 @@ export default function AdminDashboard() {
       const batch = writeBatch(db);
       let count = 0;
 
-      oldReportsSnap.forEach((doc) => {
-        batch.delete(doc.ref);
-        count++;
+      // Hapus Gambar dari Cloudinary
+      const deleteImagePromises = oldReportsSnap.docs.map(async (docSnap) => {
+          const data = docSnap.data();
+          
+          batch.delete(docSnap.ref);
+          count++;
+
+          // Jika ada gambar, hapus dari Cloudinary
+          if (data.imageUrl) {
+              try {
+                  await fetch('/api/delete-image', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ imageUrl: data.imageUrl })
+                  });
+              } catch (err) {
+                  console.error("Gagal hapus gambar auto:", err);
+              }
+          }
       });
 
+      await Promise.all(deleteImagePromises);
       await batch.commit();
-      console.log(`[Auto-Clean] Berhasil membersihkan ${count} laporan lama.`);
+      console.log(`[Auto-Clean] Berhasil membersihkan ${count} laporan & gambar lama.`);
     } catch (error) {
       console.error("Gagal auto-delete:", error);
     }
@@ -245,10 +262,7 @@ export default function AdminDashboard() {
         // A. Listener Laporan
         const qLaporan = query(collection(db, "laporan_perundungan"), orderBy("createdAt", "desc"));
         const unsubLaporan = onSnapshot(qLaporan, (snapshot) => {
-          const data = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })) as Laporan[];
+          const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Laporan[];
           setLaporanList(data);
           setFilteredList(data);
           setLoading(false);
@@ -390,7 +404,6 @@ export default function AdminDashboard() {
                     <User size={16} />
                 </div>
                 <div className="flex flex-col min-w-0">
-                    {/* UPDATE: Menampilkan Nama Admin */}
                     <span className="text-xs font-bold text-slate-700 truncate">{adminName || 'Memuat...'}</span>
                     <span className="text-[10px] text-slate-400">Administrator</span>
                 </div>
@@ -451,7 +464,6 @@ export default function AdminDashboard() {
                     </motion.div>
                 ) : (
                     filteredList.map((item) => {
-                        // Menggunakan Fungsi
                         const config = getCaseConfig(item.jenisKasus);
                         const CaseIcon = config.icon;
                         const isExpanded = expandedId === item.id;
@@ -568,6 +580,7 @@ export default function AdminDashboard() {
                 )}
             </AnimatePresence>
         </div>
+
       </main>
     </div>
   );
