@@ -122,17 +122,22 @@ export default function StudentLoginPage() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 font-sans py-8 relative overflow-hidden">
+        
+        {/* BACKGROUND IMAGE - OPTIMIZED */}
         <div className="absolute inset-0 z-0">
             <Image 
                 src="/smp gelora.png" 
                 alt="Gedung SMP Gelora" 
                 fill
+                sizes="100vw" 
                 className="object-cover object-center"
-                priority
+                priority 
             />
+            <div className="absolute inset-0 bg-blue-900/10"></div>
          </div>
 
-      <div className="w-full max-w-5xl bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-blue-900/10 overflow-hidden flex flex-col md:flex-row border border-white/50 relative z-10">
+      {/* Container Utama */}
+      <div className="w-full max-w-5xl bg-white/95 rounded-[2.5rem] shadow-2xl shadow-blue-900/10 overflow-hidden flex flex-col md:flex-row border border-white relative z-10">
         
         {/* BAGIAN KIRI (VISUAL) */}
         <div className="md:w-5/12 bg-gradient-to-br from-blue-300 via-blue-200 to-blue-300 p-8 md:p-12 flex flex-col justify-center items-center text-center relative overflow-hidden min-h-[300px] md:min-h-full">
@@ -143,7 +148,14 @@ export default function StudentLoginPage() {
              <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 md:w-28 md:h-28 bg-white rounded-[2rem] p-4 mb-6 shadow-lg shadow-blue-900/5 flex items-center justify-center">
                     <div className="relative w-full h-full">
-                        <Image src="/LOGO-sekolahGHAMA.png" alt="Logo Sekolah" fill className="object-contain" priority />
+                        <Image 
+                            src="/LOGO-sekolahGHAMA.png" 
+                            alt="Logo Sekolah" 
+                            fill 
+                            sizes="(max-width: 768px) 150px, 200px" 
+                            className="object-contain" 
+                            priority 
+                        />
                     </div>
                 </div>
                 
@@ -153,11 +165,11 @@ export default function StudentLoginPage() {
                 </p>
                 
                 <div className="grid grid-cols-1 gap-3 w-full max-w-xs text-left">
-                    <div className="flex items-center gap-3 bg-white/40 p-3.5 rounded-2xl text-sm border border-white/50 backdrop-blur-sm transition hover:bg-white/60 cursor-default shadow-sm">
+                    <div className="flex items-center gap-3 bg-white/60 p-3.5 rounded-2xl text-sm border border-white/50 transition hover:bg-white/80 cursor-default shadow-sm">
                         <div className="p-1.5 bg-orange-100 rounded-lg text-orange-500"><School size={16} /></div>
                         <span className="text-gray-600 font-bold text-xs uppercase tracking-wide">Lingkungan Aman</span>
                     </div>
-                    <div className="flex items-center gap-3 bg-white/40 p-3.5 rounded-2xl text-sm border border-white/50 backdrop-blur-sm transition hover:bg-white/60 cursor-default shadow-sm">
+                    <div className="flex items-center gap-3 bg-white/60 p-3.5 rounded-2xl text-sm border border-white/50 transition hover:bg-white/80 cursor-default shadow-sm">
                         <div className="p-1.5 bg-blue-100 rounded-lg text-blue-600"><ShieldCheck size={16} /></div>
                         <span className="text-gray-600 font-bold text-xs uppercase tracking-wide">Laporan Rahasia</span>
                     </div>
@@ -252,9 +264,9 @@ export default function StudentLoginPage() {
         </div>
       </div>
 
-      {/* --- MODAL RESET PASSWORD --- */}
+      {/* --- MODAL RESET PASSWORD (OPTIMIZED) --- */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200">
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 md:p-8 relative">
                 
                 <button 

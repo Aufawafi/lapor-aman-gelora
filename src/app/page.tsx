@@ -47,7 +47,6 @@ export default function HomePage() {
   const handleLaporClick = () => {
     if (user) {
       // Jika sudah login (sebagai siswa), langsung ke halaman lapor
-      // (Karena Admin sudah dicegah di useEffect, jadi yg bisa klik ini pasti Siswa)
       router.push('/lapor');
     } else {
       // Jika belum, tampilkan modal
@@ -355,23 +354,26 @@ export default function HomePage() {
             </div>
         </section>
       </main>
-      {/* --- MODAL LOGIN (POP UP) --- */}
+      
+      {/* --- MODAL LOGIN (POP UP) - OPTIMIZED --- */}
       <AnimatePresence>
          {showLoginModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 px-6">
-            {/* Backdrop Gelap */}
+            
+            {/* OPTIMASI 1: Backdrop Gelap Solid (HAPUS backdrop-blur-sm, GANTI bg-black/60) */}
             <motion.div 
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               onClick={() => setShowLoginModal(false)}
-              className="absolute inset-0 bg-gray-800/60 backdrop-blur-sm"
+              className="absolute inset-0 bg-black/60"
             ></motion.div>
             
-            {/* Konten Modal */}
+            {/* OPTIMASI 2: Kontainer Modal (HAPUS bg-white/80, GANTI bg-white SOLID) */}
             <motion.div 
               initial={{ opacity: 0, scale: 0.95, y: 20 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-white/80 rounded-[2rem] shadow-2xl w-full max-w-sm relative z-10 overflow-hidden border border-white/20">
+              className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm relative z-10 overflow-hidden border border-gray-100"
+            >
               <button 
                  onClick={() => setShowLoginModal(false)}
                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition p-1 rounded-full hover:bg-gray-100">

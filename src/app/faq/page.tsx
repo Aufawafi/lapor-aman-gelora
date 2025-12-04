@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link'; 
 import { ChevronDown, HelpCircle, MessageCircle, Shield, Clock, UserCheck, Activity } from 'lucide-react';
-import { motion, AnimatePresence, Variants } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Data FAQ
 const faqs = [
@@ -62,15 +62,6 @@ const faqs = [
 export default function FAQPage() {
   const [openIndex, setOpenIndex] = useState<string | null>("0-0"); 
 
-  const fadeInUp: Variants = {
-    hidden: { opacity: 0, y: 40 },
-    visible: { 
-      opacity: 1, 
-      y: 0, 
-      transition: { duration: 0.6, ease: "easeOut" } 
-    }
-  };
-
   const toggleFAQ = (index: string) => {
     setOpenIndex(openIndex === index ? null : index);
   };
@@ -85,42 +76,32 @@ export default function FAQPage() {
          <div className="absolute bottom-10 left-10 w-48 h-48 bg-blue-400/20 rounded-full blur-3xl"></div>
 
          <div className="container mx-auto px-6 text-center relative z-10">
-            <motion.div 
-              initial="hidden"
-              animate="visible"
-              variants={fadeInUp}
-            >
-              <div className="inline-flex items-center justify-center p-3 bg-white/10 backdrop-blur-md rounded-2xl mb-6 shadow-sm border border-white/20 text-gray-600">
+            <div>
+              <div className="inline-flex items-center justify-center p-3 bg-white/30 rounded-2xl mb-6 shadow-sm border border-white/20 text-gray-600">
                 <HelpCircle size={32} />
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-800 leading-tight mb-6">
                 Pertanyaan <span className="text-orange-500">Umum</span>
               </h1>
-              <p className="text-lg md:text-xl text-gray-50 max-w-3xl mx-auto leading-relaxed font-medium">
+              <p className="text-lg md:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed font-medium">
                 Temukan jawaban lengkap seputar penggunaan aplikasi Lapor Aman, privasi, dan prosedur penanganan kasus di sini.
               </p>
-            </motion.div>
+            </div>
          </div>
       </div>
 
-      {/* --- KONTEN UTAMA (Full Width Adjusted) --- */}
+      {/* --- KONTEN UTAMA --- */}
       <main className="container mx-auto px-4 sm:px-6 lg:px-8 max-w-7xl">
         
         <div className="space-y-12">
             {faqs.map((section, sIndex) => (
                 <div key={sIndex}>
-                    {/* Category Title */}
-                    <motion.h3 
-                        initial={{ opacity: 0, x: -20 }}
-                        whileInView={{ opacity: 1, x: 0 }}
-                        viewport={{ once: true }}
-                        className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3 border-b border-gray-200 pb-4"
-                    >
+                    <h3 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-3 border-b border-gray-200 pb-4">
                         <span className="w-2 h-8 bg-orange-500 rounded-full"></span>
                         {section.category}
-                    </motion.h3>
+                    </h3>
 
-                    {/* FAQ Items - Grid layout untuk layar besar agar tidak terlalu panjang */}
+                    {/* FAQ Items */}
                     <div className="grid grid-cols-1 gap-4">
                         {section.items.map((faq, iIndex) => {
                             const currentIndex = `${sIndex}-${iIndex}`;
@@ -128,13 +109,9 @@ export default function FAQPage() {
                             const Icon = faq.icon;
 
                             return (
-                                <motion.div 
+                                <div 
                                     key={iIndex} 
-                                    initial={{ opacity: 0, y: 20 }}
-                                    whileInView={{ opacity: 1, y: 0 }}
-                                    viewport={{ once: true, margin: "-50px" }}
-                                    transition={{ delay: iIndex * 0.1 }}
-                                    className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden ${
+                                    className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden ${
                                         isOpen 
                                         ? 'shadow-lg border-blue-200 ring-1 ring-blue-100' 
                                         : 'shadow-sm border-gray-200 hover:border-blue-300'
@@ -160,13 +137,14 @@ export default function FAQPage() {
                                         </div>
                                     </button>
                                     
+                                    {/* Animasi Buka Tutup */}
                                     <AnimatePresence>
                                         {isOpen && (
                                             <motion.div
                                                 initial={{ height: 0, opacity: 0 }}
                                                 animate={{ height: "auto", opacity: 1 }}
                                                 exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.3, ease: "easeInOut" }}
+                                                transition={{ duration: 0.2, ease: "easeOut" }} 
                                             >
                                                 <div className="px-6 pb-6 sm:pl-[5.5rem] text-gray-600 leading-relaxed text-sm sm:text-base border-t border-gray-200 pt-4">
                                                     {faq.answer}
@@ -174,7 +152,7 @@ export default function FAQPage() {
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
-                                </motion.div>
+                                </div>
                             );
                         })}
                     </div>
@@ -182,13 +160,8 @@ export default function FAQPage() {
             ))}
         </div>
 
-        {/* Call to Action Footer */}
-        <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mt-15 text-center bg-white rounded-[2.5rem] p-10 border border-gray-200 shadow-xl relative overflow-hidden"
-        >
+        {/* Footer CTA */}
+        <div className="mt-16 text-center bg-white rounded-[2.5rem] p-10 border border-gray-200 shadow-xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-orange-400"></div>
             <div className="relative z-10">
                 <h3 className="text-2xl font-bold text-gray-800 mb-3">Masih punya pertanyaan lain?</h3>
@@ -204,7 +177,7 @@ export default function FAQPage() {
                     </Link>
                 </div>
             </div>
-        </motion.div>
+        </div>
 
       </main>
     </div>

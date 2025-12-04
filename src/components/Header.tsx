@@ -22,7 +22,7 @@ const Header = () => {
     pathname.startsWith('/siswa/daftar') ||
     pathname === '/login';
 
-  // Efek untuk memantau status login dan mengambil data profil
+  // Efek untuk memantau status login
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -53,7 +53,6 @@ const Header = () => {
     setIsOpen(false);
   };
 
-  // Hide Header
   if (shouldHide) {
     return null;
   }
@@ -77,7 +76,6 @@ const Header = () => {
       );
     }
 
-    // Jika belum login
     return (
       <div className={mobileContainerClass}>
         <Link 
@@ -97,17 +95,21 @@ const Header = () => {
   };
 
   return (
-    <header className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200">
+    // OPTIMASI 1: Hapus backdrop-blur-md, ganti dengan bg-white/95 (Solid tapi sedikit transparan)
+    <header className="bg-white/95 sticky top-0 z-50 border-b border-gray-200 shadow-sm">
       <nav className="container mx-auto px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center">
         
         {/* Logo & Brand */}
          <div className="flex items-center">
+            {/* OPTIMASI 2: Tambahkan priority agar logo tidak berkedip */}
             <Image 
               src="/LOGO-sekolahGHAMA.png" 
               alt="Logo Sekolah Ghama" 
-              width={200} 
-              height={200} 
-              className="mr-3 w-auto h-10"/>
+              width={150} // Ukuran disesuaikan agar tidak terlalu besar file-nya
+              height={150} 
+              className="mr-3 w-auto h-10"
+              priority
+            />
             <span className="mt-3 font-extrabold text-gray-800">LAPOR</span>
             <span className="ml-1.5 mt-3 font-extrabold text-orange-500">AMAN</span>
           </div>
@@ -136,17 +138,19 @@ const Header = () => {
       {/* Menu Mobile Dropdown */}
       <div 
         className={`
-          md:hidden bg-white/95 backdrop-blur-xl shadow-xl absolute top-full left-0 w-full z-40 border-t border-gray-100
+          md:hidden 
+          bg-white border-b border-gray-200 shadow-xl absolute top-full left-0 w-full z-40
           transition-all duration-300 ease-in-out overflow-hidden origin-top
           ${isOpen ? 'max-h-screen opacity-100 scale-y-100' : 'max-h-0 opacity-0 scale-y-0'}
         `}>
+        {/* OPTIMASI 3: Hapus backdrop-blur-xl di atas. Gunakan bg-white solid agar animasi lancar */}
+        
         <div className="flex flex-col px-6 py-6 space-y-4 text-center">
           <Link href="/" className="block py-2 text-gray-800 hover:text-orange-500 font-medium text-lg" onClick={handleMobileLinkClick}>Beranda</Link>
           <Link href="/tentang-kami" className="block py-2 text-gray-800 hover:text-orange-500 font-medium text-lg" onClick={handleMobileLinkClick}>Tentang Kami</Link>
           <Link href="/faq" className="block py-2 text-gray-800 hover:text-orange-500 font-medium text-lg" onClick={handleMobileLinkClick}>FAQ</Link>
           <div className="w-full h-px bg-gray-200 my-2"></div>
           
-          {/* Mengirim props isMobile={true} agar tombol responsif penuh */}
           <AuthButtons isMobile={true} />
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo, JSX } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { User as FirebaseUser, onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
@@ -91,7 +91,7 @@ const getStatusBadge = (status: string) => {
     );
 };
 
-// --- Komponen: QuotaCard ---
+// --- Komponen: QuotaCard (OPTIMIZED) ---
 const QuotaCard = ({ count }: { count: number }) => {
     const limit = 2;
     const sisa = limit - count;
@@ -113,13 +113,13 @@ const QuotaCard = ({ count }: { count: number }) => {
                     Kuota Harian
                 </h3>
                 <span className={`text-xs font-bold px-3 py-1 rounded-lg ${
-                    isFull ? 'bg-white/50 text-red-600' : 'bg-white/40 text-blue-900'
+                    isFull ? 'bg-white/60 text-red-600' : 'bg-white/50 text-blue-900'
                 }`}>
                     {count} / {limit}
                 </span>
             </div>
             
-            <div className="w-full bg-white/40 rounded-full h-3 mb-3 overflow-hidden backdrop-blur-sm relative z-10">
+            <div className="w-full bg-white/40 rounded-full h-3 mb-3 overflow-hidden relative z-10">
                 <div 
                     className={`h-full rounded-full transition-all duration-700 ease-out ${
                         isFull ? 'bg-red-500' : 'bg-blue-600'
@@ -144,7 +144,7 @@ const QuotaCard = ({ count }: { count: number }) => {
     );
 };
 
-// --- Komponen Lainnya ---
+// --- Komponen Profile (OPTIMIZED) ---
 const ProfileCard = ({ user, userData, onLogout }: { user: FirebaseUser | null, userData: ProfilSiswa | null, onLogout: () => void }) => {
     const displayName = userData?.nama || user?.displayName || "Siswa";
     const initial = displayName.charAt(0).toUpperCase();
@@ -152,7 +152,7 @@ const ProfileCard = ({ user, userData, onLogout }: { user: FirebaseUser | null, 
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-            className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/10 border border-blue-100/50 relative overflow-hidden backdrop-blur-sm mb-6">
+            className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/10 border border-blue-100/50 relative overflow-hidden mb-6">
             <div className="flex items-center gap-5">
                 <div className="w-20 h-20 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl flex items-center justify-center border border-blue-200 shadow-sm text-3xl font-bold text-blue-400">
                     {initial}
@@ -176,9 +176,9 @@ const ProfileCard = ({ user, userData, onLogout }: { user: FirebaseUser | null, 
     );
 };
 
+// --- Komponen Stats (OPTIMIZED) ---
 const StatsGrid = ({ summary }: { summary: SummaryStats }) => {
     const total = summary.menunggu + summary.diproses + summary.selesai + summary.dibatalkan;
-    
     const createChartData = (count: number, color: string) => {
         const percentage = total === 0 ? 0 : (count / total) * 100;
         return `conic-gradient(${color} 0% ${percentage}%, #F3F4F6 ${percentage}% 100%)`;
@@ -194,7 +194,7 @@ const StatsGrid = ({ summary }: { summary: SummaryStats }) => {
     return (
         <motion.div 
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-            className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/10 border border-blue-100/50 relative overflow-hidden backdrop-blur-sm">
+            className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/10 border border-blue-100/50 relative overflow-hidden">
             <div className="flex items-center justify-between mb-6">
                 <h3 className="text-xl font-extrabold text-gray-800 flex items-center gap-2">
                     <PieChart size={20} className="text-orange-500"/> Statistik
@@ -226,7 +226,7 @@ const ReportList = ({ reports, onCancel }: { reports: LaporanSaya[], onCancel: (
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <AnimatePresence mode='popLayout'>
+            <AnimatePresence>
                 {reports.map((item) => (
                     <ReportCard key={item.id} item={item} onCancel={onCancel} />
                 ))}
@@ -235,15 +235,17 @@ const ReportList = ({ reports, onCancel }: { reports: LaporanSaya[], onCancel: (
     );
 };
 
+// --- ReportCard (OPTIMIZED) ---
 const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: string) => void }) => {
     const { icon, color } = getCaseConfig(item.jenisKasus);
 
     return (
         <motion.div 
-            layout 
-            initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95 }}
-            className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden relative">
-            
+            initial={{ opacity: 0, y: 20 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-blue-900/5 hover:-translate-y-1 transition-all duration-300 flex flex-col overflow-hidden relative"
+        >
             <div className="p-5 flex items-start justify-between gap-3 border-b border-gray-200">
                 <div className="flex gap-3 items-center">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border ${color} shadow-sm`}>
@@ -261,8 +263,15 @@ const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: stri
 
             {item.imageUrl && (
                 <div className="relative h-36 w-full bg-gray-50 overflow-hidden group-hover:opacity-90 transition-opacity">
-                    <Image src={item.imageUrl} alt="Bukti" fill className="object-cover transition-transform duration-700 group-hover:scale-110" />
-                    <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-medium">
+                    <Image 
+                        src={item.imageUrl} 
+                        alt="Bukti" 
+                        fill 
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover transition-transform duration-700 group-hover:scale-110" 
+                    />
+                  
+                    <div className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-medium">
                         <ImageIcon size={12} /> Bukti Foto
                     </div>
                 </div>
@@ -295,7 +304,7 @@ const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: stri
             {/* --- INFO AUTO DELETE --- */}
             {item.status === 'Selesai' && (
                 <div className="px-5 pb-4 mt-1">
-                    <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-medium border border-red-100 animate-pulse w-full justify-center">
+                    <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-medium border border-red-100 w-full justify-center">
                         <Trash2 size={12} />
                         <span>Hapus otomatis dalam: {getDaysRemaining(item.createdAt)} hari</span>
                     </div>
@@ -315,7 +324,7 @@ const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: stri
 
 const EmptyState = () => (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="col-span-full py-20 px-6 text-center bg-white rounded-3xl shadow-sm border border-gray-100">
-        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+        <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
             <FileText size={40} className="text-blue-300" />
         </div>
         <h3 className="text-xl font-bold text-gray-900 mb-2">Belum ada laporan</h3>
@@ -334,14 +343,16 @@ const CancelModal = ({ isOpen, onClose, onConfirm, isCancelling }: { isOpen: boo
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 px-6">
                 <motion.div 
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}
-                    className="absolute inset-0 bg-gray-800/60 backdrop-blur-sm"
+                
+                    className="absolute inset-0 bg-gray-800/60"
                 ></motion.div>
                 <motion.div 
                     initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                    className="bg-white/80 rounded-[2rem] shadow-2xl w-full max-w-sm relative z-10 overflow-hidden"
+                 
+                    className="bg-white rounded-[2rem] shadow-2xl w-full max-w-sm relative z-10 overflow-hidden"
                 >
                     <div className="p-8 text-center">
-                        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse border-4 border-red-200">
+                        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-red-200">
                             <AlertTriangle size={36} />
                         </div>
                         <h3 className="text-xl font-bold text-gray-800 mb-2">Batalkan laporan ini?</h3>
@@ -349,7 +360,7 @@ const CancelModal = ({ isOpen, onClose, onConfirm, isCancelling }: { isOpen: boo
                             Laporan akan dihapus permanen dari daftar Anda, namun tetap tercatat sebagai laporan dibatalkan.
                         </p>
                         <div className="flex gap-3">
-                            <button onClick={onClose} disabled={isCancelling} className="flex-1 py-3.5 px-4 bg-white text-gray-600 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors disabled:opacity-50">
+                            <button onClick={onClose} disabled={isCancelling} className="flex-1 py-3.5 px-4 bg-gray-50 text-gray-600 rounded-2xl font-bold text-sm hover:bg-gray-100 transition-colors disabled:opacity-50 border border-gray-100">
                                 Kembali
                             </button>
                             <button onClick={onConfirm} disabled={isCancelling} className="flex-1 py-3.5 px-4 bg-red-500 text-white rounded-2xl font-bold text-sm hover:bg-red-600 hover:shadow-lg hover:shadow-red-200 transition-all flex justify-center items-center disabled:opacity-50">
@@ -573,8 +584,8 @@ export default function SiswaDashboard() {
             </div>
             
             <div className="hidden md:block text-right">
-                <div className="inline-block px-4 py-2 bg-blue-400/10 backdrop-blur-md rounded-xl border border-blue-800/20">
-                    <p className="text-sm font-medium text-gray-600/80">
+                <div className="inline-block px-4 py-2 bg-blue-100/50 rounded-xl border border-blue-800/10">
+                    <p className="text-sm font-medium text-gray-600">
                         {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
                 </div>
@@ -601,7 +612,6 @@ export default function SiswaDashboard() {
                         <p className="text-sm text-gray-600/80 mt-1">Pantau status laporan yang telah Anda kirim.</p>
                     </div>
                     
-                    {/* TOMBOL + HANYA MUNCUL JIKA KUOTA BELUM HABIS */}
                     {dailyCount < 2 &&
                         <Link href="/lapor" className="hidden sm:inline-flex items-center gap-2 bg-white text-gray-600 px-6 py-3 rounded-2xl text-sm font-bold shadow-lg shadow-gray-900/20 hover:bg-gray-50 hover:scale-105 transition-all">
                             <Plus size={18} strokeWidth={3} /> Buat Laporan Baru

@@ -63,27 +63,40 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 font-sans relative overflow-hidden">
       
+      {/* BACKGROUND IMAGE - OPTIMIZED */}
       <div className="absolute inset-0 z-0">
         <Image 
             src="/smp gelora.png" 
             alt="Gedung SMP Gelora" 
             fill
+            sizes="100vw" 
             className="object-cover object-center"
-            priority
+            priority 
         />
+
+        <div className="absolute inset-0 bg-slate-900/40"></div>
       </div>
 
-      <div className="w-full max-w-5xl bg-white/90 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-slate-900/10 overflow-hidden flex flex-col md:flex-row border border-white/50 relative z-10">
+      {/* Container Utama */}
+      <div className="w-full max-w-5xl bg-white/95 rounded-[2.5rem] shadow-2xl shadow-slate-900/30 overflow-hidden flex flex-col md:flex-row border border-white/50 relative z-10">
         
+        {/* BAGIAN KIRI (VISUAL) */}
         <div className="md:w-5/12 bg-gradient-to-br from-slate-700 via-slate-800 to-gray-900 p-8 md:p-12 flex flex-col justify-center items-center text-center text-white relative overflow-hidden min-h-[300px] md:min-h-full">
              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5"></div>
-             <div className="absolute top-0 right-0 w-40 h-40 bg-orange-500/20 rounded-full blur-3xl -mr-10 -mt-10"></div>
-             <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl -ml-10 -mb-10"></div>
+             <div className="absolute top-0 right-0 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+             <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-500/10 rounded-full blur-3xl -ml-10 -mb-10"></div>
              
              <div className="relative z-10 flex flex-col items-center">
                 <div className="w-24 h-24 md:w-28 md:h-28 bg-white rounded-[2rem] p-4 mb-6 shadow-lg shadow-black/20 flex items-center justify-center">
                     <div className="relative w-full h-full">
-                        <Image src="/LOGO-sekolahGHAMA.png" alt="Logo Sekolah Ghama" fill className="object-contain" priority />
+                        <Image 
+                            src="/LOGO-sekolahGHAMA.png" 
+                            alt="Logo Sekolah Ghama" 
+                            fill 
+                            sizes="(max-width: 768px) 150px, 200px"
+                            className="object-contain" 
+                            priority 
+                        />
                     </div>
                 </div>
                 <h2 className="text-2xl md:text-3xl font-extrabold mb-3 tracking-tight">
@@ -92,13 +105,14 @@ export default function AdminLoginPage() {
                 <p className="text-slate-300 text-sm leading-relaxed mb-8 font-medium">
                     Kelola laporan siswa, tinjau kasus, dan pantau keamanan sekolah melalui dashboard terintegrasi.
                 </p>
-                <div className="flex items-center gap-2 bg-white/10 px-5 py-2.5 rounded-xl text-xs font-bold border border-white/10 backdrop-blur-sm shadow-sm tracking-wide uppercase">
+                <div className="flex items-center gap-2 bg-white/10 px-5 py-2.5 rounded-xl text-xs font-bold border border-white/10 shadow-sm tracking-wide uppercase">
                     <ShieldCheck size={16} className="text-orange-500" />
                     <span>Akses Terbatas</span>
                 </div>
              </div>
         </div>
 
+        {/* BAGIAN KANAN (FORMULIR) */}
         <div className="md:w-7/12 p-8 md:p-12 bg-white flex flex-col justify-center">
             <div className="mb-8">
                 <h1 className="text-3xl font-extrabold text-gray-800">Login <span className="text-slate-600">Staff</span></h1>
@@ -148,7 +162,7 @@ export default function AdminLoginPage() {
                             placeholder="••••••••"
                             required
                             suppressHydrationWarning/>
-                        <button
+                         <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
                             className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-slate-600 transition-colors focus:outline-none">

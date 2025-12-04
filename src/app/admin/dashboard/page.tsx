@@ -40,7 +40,7 @@ const getCaseConfig = (jenis: string) => {
     }
 };
 
-// --- Helper: Badge Status (FIXED TYPE) ---
+// --- Helper: Badge Status ---
 const getStatusBadge = (status: string) => {
     const styles: any = {
         Diproses: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-yellow-500/20",
@@ -59,7 +59,7 @@ const getStatusBadge = (status: string) => {
     );
 };
 
-// --- Helper: Hitung Sisa Hari Auto Delete ---
+// --- Helper: Hitung Sisa Hari ---
 const getDaysRemaining = (createdAt: any) => {
     if (!createdAt) return 0;
     const createdDate = new Date(createdAt.seconds * 1000);
@@ -71,23 +71,7 @@ const getDaysRemaining = (createdAt: any) => {
     return diffDays > 0 ? diffDays : 0;
 };
 
-// --- Komponen: StatCard ---
-const StatCard = ({ title, count, icon: Icon, colorClass }: any) => (
-  <motion.div 
-    initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-    className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex items-center justify-between group"
-  >
-    <div>
-      <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1 group-hover:text-slate-600 transition-colors">{title}</p>
-      <h3 className="text-3xl font-extrabold text-slate-800">{count}</h3>
-    </div>
-    <div className={`p-3.5 rounded-xl ${colorClass} group-hover:scale-110 transition-transform`}>
-      <Icon size={24} />
-    </div>
-  </motion.div>
-);
-
-// --- Komponen: StatsChart ---
+// --- Komponen: StatsChart (Optimized) ---
 const StatsChart = ({ summary, totalSiswa, totalAdmin }: { summary: any, totalSiswa: number, totalAdmin: number }) => {
     const m = summary.menunggu || 0;
     const p = summary.diproses || 0;
@@ -176,7 +160,7 @@ export default function AdminDashboard() {
 
   const router = useRouter();
 
-  // --- LOGIC: PEMBERSIHAN OTOMATIS (AUTO DELETE + IMAGE) ---
+  // --- LOGIC: PEMBERSIHAN OTOMATIS ---
   const autoDeleteOldReports = async () => {
     try {
       const daysAgo = 25; 
@@ -197,14 +181,10 @@ export default function AdminDashboard() {
       const batch = writeBatch(db);
       let count = 0;
 
-      // Update: Hapus Gambar dari Cloudinary
       const deleteImagePromises = oldReportsSnap.docs.map(async (docSnap) => {
           const data = docSnap.data();
-          
           batch.delete(docSnap.ref);
           count++;
-
-          // Jika ada gambar, hapus dari Cloudinary
           if (data.imageUrl) {
               try {
                   await fetch('/api/delete-image', {
@@ -220,34 +200,28 @@ export default function AdminDashboard() {
 
       await Promise.all(deleteImagePromises);
       await batch.commit();
-      console.log(`[Auto-Clean] Berhasil membersihkan ${count} laporan & gambar lama.`);
+      console.log(`[Auto-Clean] Berhasil membersihkan ${count} laporan.`);
     } catch (error) {
       console.error("Gagal auto-delete:", error);
     }
   };
 
-  // --- LOGIC: DATA FETCHING & PROTECTION ---
+  // --- DATA FETCHING ---
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/admin/login'); 
       } else {
-        
-        // --- PROTEKSI RUANGAN & AMBIL NAMA ---
         try {
             const userRef = doc(db, 'users', currentUser.uid);
             const userSnap = await getDoc(userRef);
             
             if (userSnap.exists()) {
                 const userData = userSnap.data();
-                
-                // Cek Role
                 if (userData.role !== 'admin' && userData.role !== 'guru') {
                     router.replace('/siswa/dashboard');
                     return; 
                 }
-
-                // Ambil Nama Admin
                 const realName = userData.nama || currentUser.email?.split('@')[0] || 'Administrator';
                 setAdminName(realName);
             }
@@ -259,7 +233,6 @@ export default function AdminDashboard() {
         setUser(currentUser);
         autoDeleteOldReports(); 
         
-        // A. Listener Laporan (DENGAN ERROR HANDLER)
         const qLaporan = query(collection(db, "laporan_perundungan"), orderBy("createdAt", "desc"));
         const unsubLaporan = onSnapshot(qLaporan, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Laporan[];
@@ -267,10 +240,9 @@ export default function AdminDashboard() {
           setFilteredList(data);
           setLoading(false);
         }, (error) => {
-             if (error.code !== 'permission-denied') console.error("Laporan listener error:", error);
+             if (error.code !== 'permission-denied') console.error("Laporan error:", error);
         });
 
-        // B. Listener Users (DENGAN ERROR HANDLER)
         const qUsers = query(collection(db, "users"));
         const unsubUsers = onSnapshot(qUsers, (snapshot) => {
              let s = 0, a = 0, d = 0;
@@ -286,7 +258,7 @@ export default function AdminDashboard() {
              setTotalAdmin(a);
              setTotalDibatalkan(d); 
         }, (error) => {
-             if (error.code !== 'permission-denied') console.error("Users listener error:", error);
+             if (error.code !== 'permission-denied') console.error("Users error:", error);
         });
 
         return () => { unsubLaporan(); unsubUsers(); };
@@ -295,7 +267,7 @@ export default function AdminDashboard() {
     return () => unsubscribeAuth();
   }, [router]);
 
-  // 2. Filter Logic
+  // Filter Logic
   useEffect(() => {
     let result = laporanList;
     if (filterStatus !== 'Semua') {
@@ -313,7 +285,7 @@ export default function AdminDashboard() {
     setFilteredList(result);
   }, [filterStatus, searchTerm, laporanList]);
 
-  // 3. Actions
+  // Actions
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/admin/login');
@@ -389,16 +361,18 @@ export default function AdminDashboard() {
         <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
       </div>
       
-      {/* NAVBAR */}
-      <nav className="bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-gray-200">
+      {/* NAVBAR - Optimized: Hapus backdrop-blur, ganti bg-white/95 */}
+      <nav className="bg-white/95 sticky top-0 z-50 border-b border-gray-200 shadow-sm">
         <div className="container mx-auto px-4 sm:px-6 py-3 flex justify-between items-center">
           <div className="flex items-center">
                 <Image 
                     src="/LOGO-sekolahGHAMA.png" 
                     alt="Logo Sekolah Ghama" 
-                    width={200} 
-                    height={200} 
-                    className="mr-3 w-auto h-10"/>
+                    width={150} // Ukuran lebih kecil untuk performa
+                    height={150} 
+                    className="mr-3 w-auto h-10"
+                    priority // Prioritas loading logo
+                />
                 <span className="mt-3 font-extrabold text-gray-800">LAPOR</span>
                 <span className="ml-1.5 mt-3 font-extrabold text-orange-500">AMAN</span>
             </div>
@@ -436,7 +410,7 @@ export default function AdminDashboard() {
         <div className="bg-white p-3 rounded-2xl shadow-sm border border-slate-200 mb-6 flex flex-col md:flex-row gap-3 sticky top-20 z-30">
             <div className="relative flex-grow">
                 <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
-                <input type="text" placeholder="Cari laporan (nama, deskripsi, lokasi)..." className="w-full pl-11 pr-4 py-3 bg-slate-100 border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm text-sm font-medium text-slate-700 placeholder:text-slate-400"
+                <input type="text" placeholder="Cari laporan..." className="w-full pl-11 pr-4 py-3 bg-slate-100 border-none rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm text-sm font-medium text-slate-700 placeholder:text-slate-400"
                     value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
             <div className="relative min-w-[180px]">
@@ -452,11 +426,11 @@ export default function AdminDashboard() {
             </div>
         </div>
 
-        {/* REPORT LIST */}
+        {/* REPORT LIST - OPTIMIZED: HAPUS FRAMER MOTION LIST ANIMATION */}
         <div className="space-y-4">
-            <AnimatePresence mode='popLayout'>
+            <AnimatePresence>
                 {filteredList.length === 0 ? (
-                    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Search size={32} className="text-slate-300" />
                         </div>
@@ -469,17 +443,17 @@ export default function AdminDashboard() {
                 ) : (
                     filteredList.map((item) => {
                         const config = getCaseConfig(item.jenisKasus);
-                        const CaseIcon = config.icon;
                         const isExpanded = expandedId === item.id;
 
                         return (
+                            // HAPUS prop 'layout' di sini untuk mencegah lag list
                             <motion.div 
-                                layout 
-                                initial={{ opacity: 0, y: 10 }} 
-                                animate={{ opacity: 1, y: 0 }} 
-                                exit={{ opacity: 0, scale: 0.95 }} 
+                                initial={{ opacity: 0 }} 
+                                animate={{ opacity: 1 }} 
+                                exit={{ opacity: 0 }} 
+                                transition={{ duration: 0.2 }}
                                 key={item.id} 
-                                className={`bg-white rounded-2xl border transition-all duration-300 overflow-hidden group
+                                className={`bg-white rounded-2xl border transition-all duration-200 overflow-hidden group
                                     ${isExpanded ? 'ring-2 ring-blue-500/20 shadow-lg border-blue-200' : 'border-slate-200 shadow-sm hover:border-blue-300 hover:shadow-md'}
                                 `}
                             >
@@ -505,11 +479,10 @@ export default function AdminDashboard() {
                                                 <span className="flex items-center gap-1 truncate max-w-[350px]"><User size={12}/> {item.userEmail || "Anonim"}</span>
                                             </div>
                                             
-                                            {/* INFO AUTO DELETE (BARU) */}
                                             {item.status === 'Selesai' && (
-                                                <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-red-100 animate-pulse">
+                                                <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-red-100">
                                                     <Trash2 size={10} />
-                                                    <span>Hapus otomatis dalam: {getDaysRemaining(item.createdAt)} hari</span>
+                                                    <span>Hapus otomatis: {getDaysRemaining(item.createdAt)} hari</span>
                                                 </div>
                                             )}
                                         </div>
@@ -521,10 +494,16 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
 
-                                {/* CARD DETAILS */}
+                                {/* CARD DETAILS - ANIMATED */}
                                 <AnimatePresence>
                                     {isExpanded && (
-                                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-slate-200 bg-slate-100">
+                                        <motion.div 
+                                            initial={{ height: 0, opacity: 0 }} 
+                                            animate={{ height: "auto", opacity: 1 }} 
+                                            exit={{ height: 0, opacity: 0 }} 
+                                            transition={{ duration: 0.2 }}
+                                            className="border-t border-slate-200 bg-slate-100"
+                                        >
                                             <div className="p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
                                                 <div className="lg:col-span-2 space-y-6">
                                                     <div>
@@ -561,7 +540,14 @@ export default function AdminDashboard() {
                                                     <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
                                                         {item.imageUrl ? (
                                                             <div className="relative h-48 w-full rounded-xl overflow-hidden bg-slate-100 group">
-                                                                <Image src={item.imageUrl} alt="Bukti" fill className="object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                                {/* OPTIMASI GAMBAR: Added sizes */}
+                                                                <Image 
+                                                                    src={item.imageUrl} 
+                                                                    alt="Bukti" 
+                                                                    fill 
+                                                                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                                                    className="object-cover transition-transform duration-500 group-hover:scale-110" 
+                                                                />
                                                                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                                     <a href={item.imageUrl} target="_blank" rel="noreferrer" className="bg-white text-slate-900 px-4 py-2 rounded-full text-xs font-bold hover:bg-slate-100 transition">Lihat Penuh</a>
                                                                 </div>
