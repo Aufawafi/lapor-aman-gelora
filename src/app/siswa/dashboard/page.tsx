@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, JSX } from 'react';
 import { useRouter } from 'next/navigation';
 import { User as FirebaseUser, onAuthStateChanged, signOut } from 'firebase/auth';
 import { 
@@ -18,7 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 
-// Tipe Data 
+// --- Tipe Data ---
 type LaporanSaya = {
   id: string;
   jenisKasus: string;
@@ -45,7 +45,7 @@ type SummaryStats = {
     dibatalkan: number;
 }
 
-// Helper Functions
+// --- Helper Functions ---
 const formatDate = (timestamp: any) => {
   if (!timestamp) return "-";
   return new Date(timestamp.seconds * 1000).toLocaleDateString("id-ID", {
@@ -53,12 +53,11 @@ const formatDate = (timestamp: any) => {
   });
 };
 
-// Helper: Hitung Sisa Hari Auto Delete
 const getDaysRemaining = (createdAt: any) => {
     if (!createdAt) return 0;
     const createdDate = new Date(createdAt.seconds * 1000);
     const expiryDate = new Date(createdDate);
-    expiryDate.setDate(createdDate.getDate() + 25); // Batas 25 Hari
+    expiryDate.setDate(createdDate.getDate() + 25); 
     const today = new Date();
     const diffTime = expiryDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -92,7 +91,7 @@ const getStatusBadge = (status: string) => {
     );
 };
 
-// Komponen: QuotaCard 
+// --- Komponen: QuotaCard ---
 const QuotaCard = ({ count }: { count: number }) => {
     const limit = 2;
     const sisa = limit - count;
@@ -145,7 +144,7 @@ const QuotaCard = ({ count }: { count: number }) => {
     );
 };
 
-// Komponen Lainnya
+// --- Komponen Lainnya ---
 const ProfileCard = ({ user, userData, onLogout }: { user: FirebaseUser | null, userData: ProfilSiswa | null, onLogout: () => void }) => {
     const displayName = userData?.nama || user?.displayName || "Siswa";
     const initial = displayName.charAt(0).toUpperCase();
@@ -298,7 +297,7 @@ const ReportCard = ({ item, onCancel }: { item: LaporanSaya, onCancel: (id: stri
                 <div className="px-5 pb-4 mt-1">
                     <div className="inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-3 py-1.5 rounded-xl text-[10px] font-medium border border-red-100 animate-pulse w-full justify-center">
                         <Trash2 size={12} />
-                        <span>Akan dihapus otomatis dalam {getDaysRemaining(item.createdAt)} hari</span>
+                        <span>Hapus otomatis dalam: {getDaysRemaining(item.createdAt)} hari</span>
                     </div>
                 </div>
             )}
@@ -364,7 +363,7 @@ const CancelModal = ({ isOpen, onClose, onConfirm, isCancelling }: { isOpen: boo
     </AnimatePresence>
 );
 
-// Komponen Utama
+// --- Komponen Utama ---
 export default function SiswaDashboard() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userData, setUserData] = useState<ProfilSiswa | null>(null);
@@ -376,7 +375,7 @@ export default function SiswaDashboard() {
   const [isCancelling, setIsCancelling] = useState(false);
   const router = useRouter();
 
-  // --- PEMBERSIHAN OTOMATIS (KHUSUS USER INI)
+  // --- PEMBERSIHAN OTOMATIS (KHUSUS USER INI) + HAPUS GAMBAR ---
   const autoDeleteOldReports = async (uid: string) => {
     try {
       const daysAgo = 25; 
@@ -421,21 +420,21 @@ export default function SiswaDashboard() {
 
       await Promise.all(deleteImagePromises);
       await batch.commit();
-      console.log(`[Auto-Clean Siswa] Berhasil membersihkan ${count} laporan lama milik user ini.`);
+      console.log(`[Auto-Clean Siswa] Berhasil membersihkan ${count} laporan & gambar lama milik user ini.`);
 
     } catch (error) {
       console.error("Gagal auto-delete siswa:", error);
     }
   };
 
-  // AUTH & DATA FETCHING 
+  // --- AUTH & DATA FETCHING ---
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         router.push('/siswa/login');
       } else {
         
-        // PROTEKSI HALAMAN
+        // --- PROTEKSI HALAMAN ---
         try {
             const userRef = doc(db, 'users', currentUser.uid);
             const userSnap = await getDoc(userRef);
@@ -456,23 +455,27 @@ export default function SiswaDashboard() {
         // Eksekusi Auto Delete
         autoDeleteOldReports(currentUser.uid);
         
-        // Ambil Profil
+        // Ambil Profil 
         try {
             const userDocRef = doc(db, "users", currentUser.uid);
             onSnapshot(userDocRef, (docSnap) => {
                 if (docSnap.exists()) setUserData(docSnap.data() as ProfilSiswa);
+            }, (error) => {
+                if (error.code !== 'permission-denied') console.error("Profile listener error:", error);
             });
         } catch (err) { console.error("Gagal profil:", err); }
 
-        // Ambil List Laporan
+        // Ambil List Laporan 
         const qList = query(collection(db, "laporan_perundungan"), where("userId", "==", currentUser.uid), orderBy("createdAt", "desc"));
         const unsubList = onSnapshot(qList, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as LaporanSaya[];
           setLaporanList(data);
           setLoading(false);
+        }, (error) => {
+             if (error.code !== 'permission-denied') console.error("List listener error:", error);
         });
 
-        // Ambil Kuota Harian
+        // Ambil Kuota Harian 
         const today = new Date();
         today.setHours(0, 0, 0, 0); 
         const qQuota = query(
@@ -482,6 +485,8 @@ export default function SiswaDashboard() {
         );
         const unsubQuota = onSnapshot(qQuota, (snapshot) => {
             setDailyCount(snapshot.size);
+        }, (error) => {
+             if (error.code !== 'permission-denied') console.error("Quota listener error:", error);
         });
 
         return () => {
@@ -502,22 +507,23 @@ export default function SiswaDashboard() {
     setIsCancelling(true);
     try {
         const reportRef = doc(db, "laporan_perundungan", selectedReportId);
-        const reportSnap = await getDoc(reportRef);
+        const reportSnap = await getDoc(reportRef); 
 
         if (reportSnap.exists()) {
-            const data = reportSnap.data();
-            // Hapus gambar dari Cloudinary saat user membatalkan
-            if (data.imageUrl) {
-                try {
-                    await fetch('/api/delete-image', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ imageUrl: data.imageUrl })
-                    });
-                } catch (imgErr) {
-                    console.error("Gagal hapus gambar, lanjut hapus data...", imgErr);
-                }
-            }
+             const data = reportSnap.data();
+             
+             // Delete Image Cloudinary jika ada
+             if (data.imageUrl) {
+                 try {
+                     await fetch('/api/delete-image', {
+                         method: 'POST',
+                         headers: { 'Content-Type': 'application/json' },
+                         body: JSON.stringify({ imageUrl: data.imageUrl })
+                     });
+                 } catch (imgErr) {
+                     console.error("Gagal hapus gambar:", imgErr);
+                 }
+             }
         }
 
         await deleteDoc(reportRef);
@@ -579,7 +585,9 @@ export default function SiswaDashboard() {
             {/* Sidebar */}
             <div className="lg:col-span-4 space-y-0">
                 <ProfileCard user={user} userData={userData} onLogout={handleLogout} />
+                
                 <QuotaCard count={dailyCount} />
+                
                 <StatsGrid summary={summary} />
             </div>
 

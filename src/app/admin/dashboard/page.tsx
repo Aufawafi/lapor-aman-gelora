@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, getDoc, writeBatch, where, Timestamp } from 'firebase/firestore'; 
@@ -40,15 +40,15 @@ const getCaseConfig = (jenis: string) => {
     }
 };
 
-// --- Helper: Badge Status ---
+// --- Helper: Badge Status (FIXED TYPE) ---
 const getStatusBadge = (status: string) => {
-    const styles = {
+    const styles: any = {
         Diproses: "bg-yellow-50 text-yellow-700 border-yellow-200 ring-yellow-500/20",
         Selesai: "bg-green-50 text-green-700 border-green-200 ring-green-500/20",
         Dibatalkan: "bg-red-50 text-red-700 border-red-200 ring-red-500/20",
         Menunggu: "bg-slate-100 text-slate-600 border-slate-200 ring-slate-500/20"
     };
-    // @ts-ignore
+    
     const style = styles[status] || styles.Menunggu;
     const icon = status === 'Diproses' ? <Clock size={12}/> : status === 'Selesai' ? <CheckCircle size={12}/> : <AlertCircle size={12}/>;
 
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
 
   const router = useRouter();
 
-  // --- PEMBERSIHAN OTOMATIS (AUTO DELETE + IMAGE) ---
+  // --- LOGIC: PEMBERSIHAN OTOMATIS (AUTO DELETE + IMAGE) ---
   const autoDeleteOldReports = async () => {
     try {
       const daysAgo = 25; 
@@ -197,7 +197,7 @@ export default function AdminDashboard() {
       const batch = writeBatch(db);
       let count = 0;
 
-      // Hapus Gambar dari Cloudinary
+      // Update: Hapus Gambar dari Cloudinary
       const deleteImagePromises = oldReportsSnap.docs.map(async (docSnap) => {
           const data = docSnap.data();
           
@@ -259,16 +259,18 @@ export default function AdminDashboard() {
         setUser(currentUser);
         autoDeleteOldReports(); 
         
-        // A. Listener Laporan
+        // A. Listener Laporan (DENGAN ERROR HANDLER)
         const qLaporan = query(collection(db, "laporan_perundungan"), orderBy("createdAt", "desc"));
         const unsubLaporan = onSnapshot(qLaporan, (snapshot) => {
           const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Laporan[];
           setLaporanList(data);
           setFilteredList(data);
           setLoading(false);
+        }, (error) => {
+             if (error.code !== 'permission-denied') console.error("Laporan listener error:", error);
         });
 
-        // B. Listener Users
+        // B. Listener Users (DENGAN ERROR HANDLER)
         const qUsers = query(collection(db, "users"));
         const unsubUsers = onSnapshot(qUsers, (snapshot) => {
              let s = 0, a = 0, d = 0;
@@ -283,6 +285,8 @@ export default function AdminDashboard() {
              setTotalSiswa(s);
              setTotalAdmin(a);
              setTotalDibatalkan(d); 
+        }, (error) => {
+             if (error.code !== 'permission-denied') console.error("Users listener error:", error);
         });
 
         return () => { unsubLaporan(); unsubUsers(); };
@@ -501,7 +505,7 @@ export default function AdminDashboard() {
                                                 <span className="flex items-center gap-1 truncate max-w-[350px]"><User size={12}/> {item.userEmail || "Anonim"}</span>
                                             </div>
                                             
-                                            {/* INFO AUTO DELETE */}
+                                            {/* INFO AUTO DELETE (BARU) */}
                                             {item.status === 'Selesai' && (
                                                 <div className="mt-2 inline-flex items-center gap-1.5 bg-red-50 text-red-600 px-2.5 py-1 rounded-lg text-[10px] font-medium border border-red-100 animate-pulse">
                                                     <Trash2 size={10} />
